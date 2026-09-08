@@ -45,10 +45,13 @@ MedEinstein-Basquete/
 │   ├── sw.js                # PWA — cache de assets pra funcionar offline/instalado
 │   ├── pages/
 │   ├── css/style.css
+│   ├── icons/               # ícones do PWA (192/512/180/32px)
 │   ├── js/
 │   │   ├── i18n.js          # tradução (pt-BR padrão, en como 2ª língua)
 │   │   ├── billing.js       # planos — estrutura de feature-gating SEM cobrança real
 │   │   ├── competitions.js  # liga/campeonato multi-time (equivalente ao BSA Compete)
+│   │   ├── lineups.js       # melhores quintetos/trios (+/-)
+│   │   ├── offline-queue.js # fila local pra evento registrado sem internet
 │   │   └── ...              # o resto veio do CourtIQ (auth, team, games, events, stats...)
 │   └── sql/                 # migrations, numeradas (schema.sql → schema-vN.sql)
 └── supabase/functions/      # Edge Functions (análise de vídeo por IA — parado, não é foco)
@@ -84,16 +87,33 @@ direta e próxima de quem realmente vai usar (jogador reserva, gestão do time).
 |---|---|
 | Registro ao vivo rápido | ✅ manual (2 toques) + scout por voz |
 | Estatísticas avançadas (Four Factors, eFG%, TS%, taxa de erro) | ✅ `stats.js: calcAdvancedStats` |
-| Melhores quintetos | ✅ `lineups.js: calcLineupStats` |
+| Melhores quintetos | ✅ `lineups.js: calcLineupStats` (`unitSize` também cobre trios no 3x3) |
 | Relatórios PDF/CSV | ✅ `game-summary.html` |
 | Compartilhamento ao vivo | ✅ `live.html` + `games.is_public` |
 | Offline com sync | ✅ `offline-queue.js` |
-| 5x5 e 3x3 | ⏳ em andamento |
-| Config. de jogo (períodos/duração customizáveis) | ⏳ em andamento |
-| Apps nativos (iOS/Android/Windows/Mac) | ⏳ via PWA instalável (não são 4 apps nativos separados — ver decisão abaixo) |
-| Multi-idioma | ⏳ em andamento (pt-BR + en) |
-| Gestão de liga/competição (BSA Compete) | ⏳ em andamento — `competitions.js` |
-| Cobrança/assinatura | ⏳ estrutura de planos SEM cobrança real — ver `billing.js` |
+| 5x5 e 3x3 | ✅ `games.format` — ver limitação de regras de pontuação abaixo |
+| Config. de jogo (períodos/duração customizáveis) | ✅ `games.num_periods`/`period_minutes`, `pages/game-new.html` |
+| Apps nativos (iOS/Android/Windows/Mac) | ✅ via PWA instalável (`manifest.json` + `sw.js`) — não são 4 apps nativos separados, ver decisão abaixo |
+| Multi-idioma | ✅ prova de conceito — `js/i18n.js`, cobre login + escolha de time |
+| Gestão de liga/competição (BSA Compete) | ✅ `js/competitions.js` + `pages/competitions.html` — sem hierarquia de admin, de propósito |
+| Cobrança/assinatura | ✅ estrutura em modo demonstração — `js/billing.js` + `pages/billing.html`, sem cobrança real |
+
+**Limitações conhecidas, registradas de propósito (não é trabalho esquecido):**
+- **3x3**: o formato/duração de jogo e o tamanho do "quinteto" em quadra (3 em
+  vez de 5) funcionam. As regras oficiais de pontuação do 3x3 (arremesso de
+  dentro do arco vale 1, de fora vale 2 — diferente do 2pt/3pt do 5x5) **não**
+  foram implementadas; o box score em modo 3x3 ainda soma como 5x5.
+- **i18n**: só login e escolha de time estão traduzidos. Estender pro resto do
+  app é mecânico (chave no dicionário + `data-i18n` no elemento), não é uma
+  limitação arquitetural.
+- **Competições**: classificação só enxerga jogos de times que usam a própria
+  Quadra Einstein — não existe importação de resultados de times de fora.
+- **Service worker**: registro pode falhar silenciosamente em navegadores/
+  ambientes que bloqueiam Service Workers (confirmado que isso acontece no
+  sandbox de preview automatizado usado durante o desenvolvimento — não é um
+  bug do `sw.js`, é uma restrição do ambiente de teste). `manifest.json` e os
+  ícones funcionam independente disso; sem o SW, o PWA ainda é instalável, só
+  não funciona 100% offline pros assets.
 
 **Decisões registradas** (contradições resolvidas com o usuário antes de construir):
 - **Billing**: existe a estrutura (telas de plano, campo de plano por time,
