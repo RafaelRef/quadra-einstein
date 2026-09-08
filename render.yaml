@@ -1,0 +1,10 @@
+# Quadra Einstein — Render Blueprint
+# Deploy: render.com → New → Blueprint → conectar o repo RafaelRef/quadra-einstein.
+# A cada push na main o site é republicado automaticamente.
+services:
+  - type: web
+    name: quadra-einstein
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: app
+    autoDeploy: true
