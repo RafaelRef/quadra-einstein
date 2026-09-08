@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quadra Einstein — Resumo do Jogo</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .main { padding: 1.5rem 1.25rem; max-width: 960px; margin: 0 auto; }
+    .game-result-header {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .result-opponent { color: var(--muted); font-size: 0.88rem; }
+    .result-score {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 3.5rem;
+      line-height: 1;
+    }
+    .result-score.win  { color: var(--green); }
+    .result-score.loss { color: var(--red); }
+    .result-label { font-size: 0.85rem; font-weight: 700; }
+
+    /* Box score table tweaks */
+    td.num { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1rem; }
+    .player-cell { display: flex; align-items: center; gap: 0.5rem; }
+    .mini-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent-dim);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 0.7rem;
+      color: var(--accent2); flex-shrink: 0;
+    }
+
+    /* Gráfico de quartos */
+    .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+    .quarter-card { background: var(--bg3); border-radius: 10px; padding: 0.75rem; text-align: center; }
+    .quarter-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .quarter-score { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.8rem; }
+
+    /* Distribuição de pontos */
+    .dist-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
+    .dist-label { font-size: 0.8rem; color: var(--muted); width: 80px; }
+    .dist-bar-wrap { flex: 1; height: 12px; background: var(--bg3); border-radius: 6px; overflow: hidden; }
+    .dist-bar { height: 100%; border-radius: 6px; }
+    .dist-val { font-size: 0.82rem; font-weight: 600; width: 32px; }
+
+    /* Shot chart */
+    .shotchart-svg { width: 100%; max-width: 600px; border-radius: 10px; border: 1px solid var(--border); }
+    .shot-filters { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .filter-btn {
+      padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+      background: var(--bg3); border: 1px solid var(--border2); color: var(--muted); cursor: pointer;
+    }
+    .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent2); }
+    .shot-stats-row { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.82rem; }
+    .shot-stat { color: var(--muted); }
+    .shot-stat strong { color: var(--text); }
+
+    /* Exportar PDF: usa a caixa de diálogo de impressão do navegador (Salvar como PDF).
+       Sem lib nenhuma — só um layout dedicado que junta as 3 abas numa página só. */
+    @media print {
+      .navbar, .tabs, #btn-export-csv, #btn-export-pdf, .shot-filters, #shots-player-select,
+      .form-group { display: none !important; }
+      body.printing .tab-panel { display: block !important; margin-bottom: 1.5rem; page-break-inside: avoid; }
+      .game-result-header { border: none; padding: 0.5rem 0; }
+      body { background: #fff; color: #000; }
+      .table-wrap, table, th, td, .quarter-card, .game-result-header { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a class="navbar-logo" href="games.html">Quadra<span>Einstein</span></a>
+    <div class="navbar-actions">
+      <a class="btn btn-ghost btn-sm" id="link-ai-review" href="#" style="display:none">🤖 Revisão IA</a>
+      <a class="btn btn-ghost btn-sm" href="analysis.html">Análise</a>
+      <a class="btn btn-ghost btn-sm" href="scout.html">Scout</a>
+      <a class="btn btn-ghost btn-sm" href="games.html">← Jogos</a>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="game-result-header">
+      <div class="result-opponent" id="result-meta">Carregando...</div>
+      <div class="result-score" id="result-score">—</div>
+      <div class="result-label" id="result-label"></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="setTab('boxscore')">Box Score</button>
+      <button class="tab-btn" onclick="setTab('team')">Time</button>
+      <button class="tab-btn" onclick="setTab('shots')">Arremessos</button>
+    </div>
+
+    <!-- Box Score -->
+    <div class="tab-panel active" id="tab-boxscore">
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.5rem">
+        <button class="btn btn-ghost btn-sm" id="btn-export-pdf">🖨 Exportar PDF</button>
+        <button class="btn btn-ghost btn-sm" id="btn-export-csv">⬇ Exportar CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Atleta</th>
+              <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>ROB</th><th>TOC</th><th>ERR</th><th>FAL</th><th>FG%</th><th>3P%</th><th>LL%</th><th title="Eficiência: PTS+REB+AST+ROB+TOC − arremessos errados − lances livres errados − erros">EFF</th>
+            </tr>
+          </thead>
+          <tbody id="boxscore-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Time -->
+    <div class="tab-panel" id="tab-team">
+      <!-- Placar final resumido -->
+      <div id="team-result-row" class="mb-3" style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2rem;" id="team-score-display">—</div>
+        <div>
+          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)" id="team-result-label"></div>
+          <div style="font-size:0.8rem;color:var(--muted)" id="team-opp-name"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.5rem">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--muted);margin:0">Pontos por quarto</h3>
+        <span id="quarter-legend" style="display:none;font-size:0.72rem;color:var(--muted)">— seu time <span style="opacity:0.6">/ adversário</span></span>
+      </div>
+      <div class="quarter-grid mb-3" id="quarter-grid"></div>
+
+      <h3 class="mb-2" style="font-size:1rem;font-weight:700;color:var(--muted)">Distribuição de pontos</h3>
+      <div id="dist-chart"></div>
+
+      <h3 class="mb-2 mt-3" style="font-size:1rem;font-weight:700;color:var(--muted)">Quatro fatores (ofensivos)</h3>
+      <div class="quarter-grid" id="four-factors-grid"></div>
+      <div class="text-muted text-sm mt-2">ORB%/DRB% ficam de fora — dependem de rebotes do adversário, que ainda não registramos por tipo de evento.</div>
+
+      <h3 class="mb-2 mt-3" style="font-size:1rem;font-weight:700;color:var(--muted)">Melhores quintetos</h3>
+      <div class="table-wrap" id="lineups-wrap" style="display:none">
+        <table>
+          <thead><tr><th>Quinteto</th><th>MIN</th><th>Pró</th><th>Contra</th><th>+/-</th></tr></thead>
+          <tbody id="lineups-body"></tbody>
+        </table>
+      </div>
+      <div class="text-muted text-sm mt-2" id="lineups-empty" style="display:none">
+        Sem substituições suficientes registradas neste jogo pra identificar quintetos completos (5 atletas em quadra ao mesmo tempo).
+      </div>
+    </div>
+
+    <!-- Arremessos -->
+    <div class="tab-panel" id="tab-shots">
+      <div class="form-group mb-2">
+        <label class="form-label">Atleta</label>
+        <select class="select" id="shots-player-select" onchange="renderShotChart()">
+          <option value="all">Todas as atletas</option>
+        </select>
+      </div>
+      <div class="shot-filters">
+        <button class="filter-btn active" onclick="setShotFilter('all')">Todos</button>
+        <button class="filter-btn" onclick="setShotFilter('made')">Certos</button>
+        <button class="filter-btn" onclick="setShotFilter('missed')">Errados</button>
+      </div>
+      <div class="shot-filters" id="team-filters" style="display:none">
+        <button class="filter-btn active" onclick="setShotTeam('all')">Ambos os times</button>
+        <button class="filter-btn" onclick="setShotTeam('ours')">Nosso time</button>
+        <button class="filter-btn" onclick="setShotTeam('opp')">Adversário</button>
+      </div>
+      <svg class="shotchart-svg" id="game-shotchart" viewBox="0 0 560 300"></svg>
+      <div class="shot-stats-row">
+        <div class="shot-stat">Total: <strong id="gs-total">0</strong></div>
+        <div class="shot-stat">Certos: <strong id="gs-made" style="color:var(--green)">0</strong></div>
+        <div class="shot-stat">Errados: <strong id="gs-missed" style="color:var(--red)">0</strong></div>
+        <div class="shot-stat">FG%: <strong id="gs-pct">0%</strong></div>
+      </div>
+      <div class="text-muted text-sm mt-2" id="shots-empty" style="display:none">
+        Sem arremessos com posição registrada neste jogo. Os pontos do mapa aparecem quando o jogo é registrado pela quadra interativa ou pela análise de vídeo.
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from '../js/auth.js';
+    import { getGame, getGamePlayers } from '../js/games.js';
+    import { getGameEvents } from '../js/events.js';
+    import { calcBoxScore, calcTeamScore, calcOppScore, calcScoreByQuarter, calcOppScoreByQuarter, calcPlayerStats, calcAdvancedStats, isOppEvent } from '../js/stats.js';
+    import { getInitials, getQueryParam, pct, formatDate, downloadCSV } from '../js/utils.js';
+    import { initShotChart, renderShots, getShotStats } from '../js/shotchart.js';
+    import { getGameStints, playedSeconds, fmtMinutes } from '../js/stints.js';
+    import { calcLineupStats } from '../js/lineups.js';
+
+    const gameId = getQueryParam('gameId') || localStorage.getItem('currentGameId');
+    let allEvents = [];
+    let gamePlayersGlobal = [];
+    let shotFilter = 'all';
+    let shotTeam = 'all';
+    let shotChartReady = false;
+
+    window.setTab = function(name) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', ['boxscore','team','shots'][i] === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'shots') {
+        if (!shotChartReady) { initShotChart(document.getElementById('game-shotchart')); shotChartReady = true; }
+        renderShotChart();
+      }
+    };
+
+    window.setShotFilter = function(f) {
+      shotFilter = f;
+      document.querySelectorAll('.shot-filters .filter-btn').forEach((b, i) => {
+        b.classList.toggle('active', ['all','made','missed'][i] === f);
+      });
+      renderShotChart();
+    };
+
+    window.setShotTeam = function(t) {
+      shotTeam = t;
+      document.querySelectorAll('#team-filters .filter-btn').forEach((b, i) => {
+        b.classList.toggle('active', ['all','ours','opp'][i] === t);
+      });
+      renderShotChart();
+    };
+
+    window.renderShotChart = function() {
+      const svg = document.getElementById('game-shotchart');
+      const playerFilter = document.getElementById('shots-player-select').value;
+      let shots = allEvents.filter(e => e.shot_x != null);
+      if (shotTeam === 'ours') shots = shots.filter(e => !isOppEvent(e));
+      if (shotTeam === 'opp')  shots = shots.filter(e => isOppEvent(e));
+      if (playerFilter !== 'all') shots = shots.filter(e => e.player_id === playerFilter);
+      renderShots(svg, shots, shotFilter, null);
+      const st = getShotStats(shots, playerFilter === 'all' ? null : playerFilter);
+      document.getElementById('gs-total').textContent = st.total;
+      document.getElementById('gs-made').textContent = st.made;
+      document.getElementById('gs-missed').textContent = st.missed;
+      document.getElementById('gs-pct').textContent = st.pct;
+      document.getElementById('shots-empty').style.display =
+        allEvents.some(e => e.shot_x != null) ? 'none' : 'block';
+    };
+
+    async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      if (!gameId) { window.location.href = 'games.html'; return; }
+
+      const [game, gamePlayers, events, stints] = await Promise.all([
+        getGame(gameId),
+        getGamePlayers(gameId),
+        getGameEvents(gameId),
+        getGameStints(gameId).catch(() => []),
+      ]);
+
+      if (!game) { window.location.href = 'games.html'; return; }
+
+      allEvents = events;
+      gamePlayersGlobal = gamePlayers;
+      // popula seletor de atletas (somente as que têm arremesso com posição)
+      const shotPlayerIds = new Set(events.filter(e => e.shot_x != null && e.player_id).map(e => e.player_id));
+      const select = document.getElementById('shots-player-select');
+      select.innerHTML = '<option value="all">Todas as atletas</option>' +
+        gamePlayers
+          .filter(p => shotPlayerIds.has(p.id))
+          .map(p => `<option value="${p.id}">#${p.jersey_number ?? '—'} ${p.name}</option>`)
+          .join('');
+
+      const ourScore = game.our_score ?? calcTeamScore(events);
+      // opp_score salvo no jogo > pontos do adversário registrados em eventos (manual ou IA)
+      const oppPtsFromEvents = calcOppScore(events);
+      const oppScore = game.opp_score ?? (oppPtsFromEvents > 0 ? oppPtsFromEvents : null);
+
+      // Link para a revisão da IA quando há análise registrada
+      if (game.ai_raw || events.some(e => e.source === 'ai')) {
+        const link = document.getElementById('link-ai-review');
+        link.href = `ai-review.html?gameId=${gameId}`;
+        link.style.display = '';
+      }
+      // Filtro de time no mapa quando há arremessos do adversário
+      if (events.some(e => e.shot_x != null && isOppEvent(e))) {
+        document.getElementById('team-filters').style.display = '';
+      }
+      const scoreText = oppScore != null ? `${ourScore} — ${oppScore}` : `${ourScore}`;
+      const win = oppScore != null ? ourScore > oppScore : null;
+      const meta = `${formatDate(game.date)} · ${game.opponent}${game.tournament ? ' · ' + game.tournament : ''}`;
+      document.getElementById('result-meta').textContent = meta;
+      const scoreEl = document.getElementById('result-score');
+      scoreEl.textContent = scoreText;
+      if (win === true)  scoreEl.classList.add('win');
+      if (win === false) scoreEl.classList.add('loss');
+      document.getElementById('result-label').textContent = win === true ? 'VITÓRIA' : win === false ? 'DERROTA' : '';
+      document.title = `Quadra Einstein — vs ${game.opponent}`;
+
+      // Box score (estilo NBA: MIN + EFF de eficiência)
+      const boxRows = calcBoxScore(events, gamePlayers);
+      const totals = calcPlayerStats(events);
+      const eff = r => r.pts + r.reb + r.ast + r.stl + r.blk
+        - (r.fgAtt - r.fgMade) - (r.ftAtt - r.ftMade) - r.to;
+      // duração total do jogo p/ stints ainda abertos (jogo encerrado sem sub final)
+      const gameEndS = Math.max(2400, ...stints.map(s => Number(s.out_s ?? s.in_s)));
+      const minCell = pid => {
+        const s = playedSeconds(stints, pid, gameEndS);
+        return s > 0 ? fmtMinutes(s) : '—';
+      };
+      const effCell = v => `<td style="font-weight:700;color:${v >= 15 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text)'}">${v > 0 ? '+' + v : v}</td>`;
+      const tbody = document.getElementById('boxscore-body');
+      tbody.innerHTML = boxRows.map(row => `
+        <tr>
+          <td>
+            <div class="player-cell">
+              <div class="mini-avatar">${getInitials(row.player.name)}</div>
+              <div>
+                <div style="font-weight:600;font-size:0.88rem">${row.player.name}</div>
+                <div style="font-size:0.72rem;color:var(--muted)">#${row.player.jersey_number ?? '—'}</div>
+              </div>
+            </div>
+          </td>
+          <td>${minCell(row.player.id)}</td>
+          <td class="num">${row.pts}</td>
+          <td>${row.reb}</td>
+          <td>${row.ast}</td>
+          <td>${row.stl}</td>
+          <td>${row.blk}</td>
+          <td>${row.to}</td>
+          <td>${row.foul}</td>
+          <td>${pct(row.fgMade, row.fgAtt)}</td>
+          <td>${pct(row.threeMade, row.threeAtt)}</td>
+          <td>${pct(row.ftMade, row.ftAtt)}</td>
+          ${effCell(eff(row))}
+        </tr>
+      `).join('') + `
+        <tr class="totals">
+          <td><strong>TOTAIS</strong></td>
+          <td>—</td>
+          <td class="num">${totals.pts}</td>
+          <td>${totals.reb}</td>
+          <td>${totals.ast}</td>
+          <td>${totals.stl}</td>
+          <td>${totals.blk}</td>
+          <td>${totals.to}</td>
+          <td>${totals.foul}</td>
+          <td>${pct(totals.fgMade, totals.fgAtt)}</td>
+          <td>${pct(totals.threeMade, totals.threeAtt)}</td>
+          <td>${pct(totals.ftMade, totals.ftAtt)}</td>
+          ${effCell(eff(totals))}
+        </tr>
+      `;
+
+      // Exportar PDF (imprime as 3 abas juntas — ver @media print no <style>)
+      document.getElementById('btn-export-pdf').onclick = () => {
+        if (!shotChartReady) { initShotChart(document.getElementById('game-shotchart')); shotChartReady = true; }
+        renderShotChart();
+        document.body.classList.add('printing');
+        window.print();
+      };
+      window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
+
+      // Exportar box score em CSV
+      document.getElementById('btn-export-csv').onclick = () => {
+        const header = ['Atleta', 'Número', 'MIN', 'PTS', 'REB', 'AST', 'ROB', 'TOC', 'ERR', 'FAL', 'FG%', '3P%', 'LL%', 'EFF'];
+        const rows = boxRows.map(row => [
+          row.player.name, row.player.jersey_number ?? '', minCell(row.player.id).replace('—', ''),
+          row.pts, row.reb, row.ast, row.stl, row.blk, row.to, row.foul,
+          pct(row.fgMade, row.fgAtt), pct(row.threeMade, row.threeAtt), pct(row.ftMade, row.ftAtt), eff(row),
+        ]);
+        rows.push(['TOTAIS', '', '', totals.pts, totals.reb, totals.ast, totals.stl, totals.blk, totals.to, totals.foul,
+          pct(totals.fgMade, totals.fgAtt), pct(totals.threeMade, totals.threeAtt), pct(totals.ftMade, totals.ftAtt), eff(totals)]);
+        const safeName = (game.opponent || 'jogo').replace(/[^\p{L}\p{N}]+/gu, '-');
+        downloadCSV(`quadra-einstein-vs-${safeName}.csv`, [header, ...rows]);
+      };
+
+      // Placar resumido na aba Time
+      const scoreDisplay = oppScore != null ? `${ourScore} — ${oppScore}` : `${ourScore}`;
+      const scoreEl2 = document.getElementById('team-score-display');
+      scoreEl2.textContent = scoreDisplay;
+      if (win === true)  scoreEl2.style.color = 'var(--green)';
+      if (win === false) scoreEl2.style.color = 'var(--red)';
+      document.getElementById('team-result-label').textContent =
+        win === true ? 'VITÓRIA' : win === false ? 'DERROTA' : 'RESULTADO';
+      document.getElementById('team-opp-name').textContent = `vs ${game.opponent}`;
+
+      // Por quarto — mostra adversário se houver eventos opp_1pt rastreados
+      const byQ = calcScoreByQuarter(events);
+      const oppByQ = calcOppScoreByQuarter(events);
+      const hasOppQuarterData = events.some(e => e.type === 'opp_1pt');
+      if (hasOppQuarterData) document.getElementById('quarter-legend').style.display = '';
+      document.getElementById('quarter-grid').innerHTML = [1,2,3,4].map(q => `
+        <div class="quarter-card">
+          <div class="quarter-label">${q}Q</div>
+          <div class="quarter-score">${byQ[q]}</div>
+          ${hasOppQuarterData ? `<div style="font-size:1rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700">${oppByQ[q]}</div>` : ''}
+        </div>
+      `).join('');
+
+      // Distribuição de pontos
+      const pts2  = events.filter(e => e.type === '2pt_made').length * 2;
+      const pts3  = events.filter(e => e.type === '3pt_made').length * 3;
+      const ptsLL = events.filter(e => e.type === 'ft_made').length;
+      const distMax = Math.max(pts2, pts3, ptsLL, 1);
+      document.getElementById('dist-chart').innerHTML = [
+        ['2 Pontos', pts2, '#d4af17'],
+        ['3 Pontos', pts3, '#22c55e'],
+        ['Lances livres', ptsLL, '#f97316'],
+      ].map(([label, val, color]) => `
+        <div class="dist-row">
+          <div class="dist-label">${label}</div>
+          <div class="dist-bar-wrap"><div class="dist-bar" style="width:${Math.round(val/distMax*100)}%;background:${color}"></div></div>
+          <div class="dist-val">${val}</div>
+        </div>
+      `).join('');
+
+      // Quatro fatores ofensivos (time todo)
+      const adv = calcAdvancedStats(totals);
+      document.getElementById('four-factors-grid').innerHTML = [
+        ['eFG%', adv.efgPct, 'Arremessos de campo, com bônus pra cesta de 3'],
+        ['TS%', adv.tsPct, 'Eficiência real, contando lances livres'],
+        ['TOV%', adv.tovPct, 'Erros a cada 100 posses estimadas'],
+        ['FT Rate', adv.ftRate, 'Lances livres tentados por arremesso de campo'],
+      ].map(([label, val, title]) => `
+        <div class="quarter-card" title="${title}">
+          <div class="quarter-label">${label}</div>
+          <div class="quarter-score">${val}%</div>
+        </div>
+      `).join('');
+
+      // Melhores quintetos (cruza stints x eventos com clock_s)
+      const playerById = Object.fromEntries(gamePlayers.map(p => [p.id, p]));
+      const lineups = calcLineupStats(events, stints, gameEndS);
+      if (lineups.length === 0) {
+        document.getElementById('lineups-empty').style.display = '';
+      } else {
+        document.getElementById('lineups-wrap').style.display = '';
+        document.getElementById('lineups-body').innerHTML = lineups.map(row => `
+          <tr>
+            <td>${row.playerIds.map(id => `#${playerById[id]?.jersey_number ?? '—'}`).join(' ')}</td>
+            <td>${fmtMinutes(row.secondsPlayed)}</td>
+            <td>${row.pointsFor}</td>
+            <td>${row.pointsAgainst}</td>
+            <td style="font-weight:700;color:${row.plusMinus > 0 ? 'var(--green)' : row.plusMinus < 0 ? 'var(--red)' : 'var(--text)'}">${row.plusMinus > 0 ? '+' + row.plusMinus : row.plusMinus}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

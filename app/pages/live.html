@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quadra Einstein — Placar ao vivo</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .main { padding: 1.5rem 1.25rem; max-width: 720px; margin: 0 auto; }
+    .live-header {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.5rem; margin-bottom: 1.5rem;
+      display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center;
+    }
+    .live-badge-lg {
+      background: #7f1d1d; color: var(--red); font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 4px; letter-spacing: 0.08em;
+    }
+    .live-teams { color: var(--muted); font-size: 0.9rem; }
+    .live-score {
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 3.2rem; line-height: 1;
+    }
+    .live-quarter { font-size: 0.8rem; color: var(--muted); }
+    .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-bottom: 1.5rem; }
+    .quarter-card { background: var(--bg3); border-radius: 10px; padding: 0.6rem; text-align: center; }
+    .quarter-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .quarter-score { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.5rem; }
+    td.num { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; }
+    .footer-note { text-align: center; color: var(--muted); font-size: 0.75rem; margin-top: 2rem; }
+    .gone-box { text-align: center; padding: 3rem 1.5rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <span class="navbar-logo">Quadra<span>Einstein</span></span>
+  </nav>
+
+  <div class="main" id="app" style="display:none">
+    <div class="live-header">
+      <span class="live-badge-lg" id="live-badge" style="display:none">● AO VIVO</span>
+      <div class="live-teams" id="live-teams">—</div>
+      <div class="live-score" id="live-score">0 — 0</div>
+      <div class="live-quarter" id="live-quarter"></div>
+    </div>
+
+    <div class="quarter-grid" id="quarter-grid"></div>
+
+    <h3 class="mb-2" style="font-size:1rem;font-weight:700;color:var(--muted)">Box score</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Atleta</th><th>PTS</th><th>REB</th><th>AST</th><th>ROB</th><th>TOC</th><th>FAL</th><th>FG%</th><th>3P%</th><th>LL%</th></tr>
+        </thead>
+        <tbody id="boxscore-body"></tbody>
+      </table>
+    </div>
+
+    <div class="footer-note">Atualiza a cada poucos segundos · Quadra Einstein</div>
+  </div>
+
+  <div class="gone-box" id="gone-box" style="display:none">
+    Este link não está mais disponível — o técnico desativou o compartilhamento deste jogo.
+  </div>
+
+  <script type="module">
+    import { getGame, getGamePlayers } from '../js/games.js';
+    import { getGameEvents } from '../js/events.js';
+    import { getTeamName } from '../js/team.js';
+    import { calcBoxScore, calcPlayerStats, calcTeamScore, calcOppScore, calcScoreByQuarter, calcOppScoreByQuarter } from '../js/stats.js';
+    import { getInitials, getQueryParam, pct, formatDate } from '../js/utils.js';
+
+    const gameId = getQueryParam('gameId');
+    const REFRESH_MS = 8000;
+
+    function showGone() {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('gone-box').style.display = '';
+    }
+
+    async function tick() {
+      let game;
+      try {
+        game = await getGame(gameId);
+      } catch {
+        showGone();
+        return;
+      }
+      // RLS já bloqueia jogos não públicos — se sumiu ou foi desativado, cai aqui.
+      if (!game || !game.is_public) { showGone(); return; }
+
+      document.getElementById('app').style.display = '';
+      document.getElementById('gone-box').style.display = 'none';
+
+      const [teamName, gamePlayers, events] = await Promise.all([
+        getTeamName(game.team_id).catch(() => null),
+        getGamePlayers(gameId),
+        getGameEvents(gameId),
+      ]);
+
+      document.title = `Quadra Einstein — ${teamName || 'Time'} vs ${game.opponent}`;
+      document.getElementById('live-teams').textContent =
+        `${teamName || 'Nosso time'} vs ${game.opponent}${game.tournament ? ' · ' + game.tournament : ''} · ${formatDate(game.date)}`;
+      document.getElementById('live-badge').style.display = game.status === 'live' ? '' : 'none';
+
+      const ourScore = game.our_score ?? calcTeamScore(events);
+      const oppPts = calcOppScore(events);
+      const oppScore = game.opp_score ?? (oppPts > 0 ? oppPts : null);
+      document.getElementById('live-score').textContent = oppScore != null ? `${ourScore} — ${oppScore}` : `${ourScore}`;
+      document.getElementById('live-quarter').textContent =
+        game.status === 'finished' ? 'Jogo encerrado' : game.status === 'live' ? 'Em andamento' : 'A começar';
+
+      const byQ = calcScoreByQuarter(events);
+      const oppByQ = calcOppScoreByQuarter(events);
+      const hasOppQ = events.some(e => e.opp_jersey_number != null);
+      document.getElementById('quarter-grid').innerHTML = [1, 2, 3, 4].map(q => `
+        <div class="quarter-card">
+          <div class="quarter-label">${q}Q</div>
+          <div class="quarter-score">${byQ[q]}</div>
+          ${hasOppQ ? `<div style="font-size:0.85rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700">${oppByQ[q]}</div>` : ''}
+        </div>
+      `).join('');
+
+      const boxRows = calcBoxScore(events, gamePlayers);
+      const totals = calcPlayerStats(events);
+      document.getElementById('boxscore-body').innerHTML = boxRows.map(row => `
+        <tr>
+          <td>#${row.player.jersey_number ?? '—'} ${row.player.name}</td>
+          <td class="num">${row.pts}</td>
+          <td>${row.reb}</td><td>${row.ast}</td><td>${row.stl}</td><td>${row.to}</td><td>${row.foul}</td>
+          <td>${pct(row.fgMade, row.fgAtt)}</td><td>${pct(row.threeMade, row.threeAtt)}</td><td>${pct(row.ftMade, row.ftAtt)}</td>
+        </tr>
+      `).join('') + `
+        <tr class="totals">
+          <td><strong>TOTAIS</strong></td>
+          <td class="num">${totals.pts}</td>
+          <td>${totals.reb}</td><td>${totals.ast}</td><td>${totals.stl}</td><td>${totals.to}</td><td>${totals.foul}</td>
+          <td>${pct(totals.fgMade, totals.fgAtt)}</td><td>${pct(totals.threeMade, totals.threeAtt)}</td><td>${pct(totals.ftMade, totals.ftAtt)}</td>
+        </tr>
+      `;
+    }
+
+    if (!gameId) {
+      showGone();
+    } else {
+      tick();
+      setInterval(tick, REFRESH_MS);
+    }
+  </script>
+</body>
+</html>
