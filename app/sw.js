@@ -4,7 +4,7 @@
 // mesmo com conexão ruim. Dados (jogos, eventos, placar) NÃO passam por aqui —
 // isso é responsabilidade da fila em js/offline-queue.js. Por isso o fetch
 // handler ignora qualquer request pra fora da própria origem (Supabase inclusive).
-const CACHE_NAME = 'quadra-einstein-v1';
+const CACHE_NAME = 'quadra-einstein-v2';
 
 const APP_SHELL = [
   './',
@@ -36,8 +36,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Stale-while-revalidate: responde rápido com o que tem em cache (ou a rede, se
-// for a primeira vez), e atualiza o cache em segundo plano pra próxima visita.
+// Network-first: sempre busca a versão mais nova primeiro (crítico enquanto o
+// app está em desenvolvimento ativo — ninguém quer ficar preso numa tela
+// antiga sem saber por quê). Só cai pro cache se a rede falhar de verdade
+// (offline), que é o cenário que o PWA existe pra cobrir.
+//
+// Versão anterior era stale-while-revalidate (mostrava o cache antigo na hora
+// e só atualizava em segundo plano pra PRÓXIMA visita) — na prática isso fazia
+// qualquer deploy novo parecer "não teve efeito" pra quem já tinha visitado
+// antes, porque a tela antiga aparecia primeiro sempre.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
@@ -46,14 +53,11 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res.ok) caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(req)
+      .then((res) => {
+        if (res.ok) caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });
