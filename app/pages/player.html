@@ -55,6 +55,20 @@
     .shot-stat { color: var(--muted); }
     .shot-stat strong { color: var(--text); }
 
+    /* Medidores circulares (estilo BSA: perfil da atleta com gráficos de anel) */
+    .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 1rem; }
+    .gauge-card { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1rem 0.5rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; }
+    .gauge { position: relative; width: 88px; height: 88px; }
+    .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .gauge-bg { fill: none; stroke: var(--bg3); stroke-width: 8; }
+    .gauge-fg { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+    .gauge-value {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.25rem;
+    }
+    .gauge-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: center; }
+    .gauge-sub { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: -0.3rem; }
+
     /* Input manual */
     .manual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     .manual-pair { display: flex; gap: 0.4rem; align-items: center; }
@@ -92,12 +106,19 @@
 
     <!-- Abas -->
     <div class="tabs">
-      <button class="tab-btn active" onclick="setTab('history')">Histórico</button>
+      <button class="tab-btn active" onclick="setTab('advanced')">Avançado</button>
+      <button class="tab-btn" onclick="setTab('history')">Histórico</button>
       <button class="tab-btn" onclick="setTab('shotchart')">Mapa de arremessos</button>
     </div>
 
+    <!-- Avançado -->
+    <div class="tab-panel active" id="tab-advanced">
+      <div class="gauge-grid" id="gauge-grid"></div>
+      <div class="text-muted text-sm mt-3">Calculado sobre todos os eventos da temporada (não é média das médias por jogo).</div>
+    </div>
+
     <!-- Histórico -->
-    <div class="tab-panel active" id="tab-history">
+    <div class="tab-panel" id="tab-history">
       <div class="table-wrap">
         <table id="history-table">
           <thead>
@@ -206,7 +227,8 @@
     import { getPlayers } from '../js/team.js';
     import { getGames } from '../js/games.js';
     import { getPlayerEvents, createEvent } from '../js/events.js';
-    import { calcPlayerStats, calcPlayerAverages } from '../js/stats.js';
+    import { calcPlayerStats, calcPlayerAverages, calcAdvancedStats } from '../js/stats.js';
+    import { gaugeCard } from '../js/gauge.js';
     import { getInitials, getQueryParam, pct, formatDate, showToast, setLoading } from '../js/utils.js';
     import { initShotChart, renderShots, getShotStats } from '../js/shotchart.js';
 
@@ -217,12 +239,25 @@
 
     window.setTab = function(name) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        b.classList.toggle('active', ['history','shotchart'][i] === name);
+        b.classList.toggle('active', ['advanced','history','shotchart'][i] === name);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       if (name === 'shotchart') renderChart();
     };
+
+    function renderAdvanced() {
+      const totals = calcPlayerStats(allEvents);
+      const adv = calcAdvancedStats(totals);
+      document.getElementById('gauge-grid').innerHTML = [
+        gaugeCard('FG%', totals.fgPct, `${totals.fgMade}/${totals.fgAtt}`),
+        gaugeCard('3PT%', totals.threePct, `${totals.threeMade}/${totals.threeAtt}`),
+        gaugeCard('FT%', totals.ftPct, `${totals.ftMade}/${totals.ftAtt}`),
+        gaugeCard('eFG%', adv.efgPct, 'c/ bônus de 3'),
+        gaugeCard('TS%', adv.tsPct, 'c/ lances livres'),
+        gaugeCard('TOV%', adv.tovPct, 'erros/100 posses'),
+      ].join('');
+    }
 
     window.setFilter = function(f) {
       shotFilter = f;
@@ -266,6 +301,7 @@
         document.getElementById('avg-fg').textContent = avgs.fgPct + '%';
       }
 
+      renderAdvanced();
       await loadHistory(byGame);
       await loadManualGames(teamId);
       await loadShotGames(teamId, byGame);

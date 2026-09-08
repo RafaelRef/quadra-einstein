@@ -50,6 +50,17 @@
     .quarter-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .quarter-score { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.8rem; }
 
+    /* Medidores circulares (estilo BSA) */
+    .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 1rem; }
+    .gauge-card { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1rem 0.5rem; background: var(--bg3); border-radius: 12px; }
+    .gauge { position: relative; width: 84px; height: 84px; }
+    .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .gauge-bg { fill: none; stroke: var(--bg2); stroke-width: 8; }
+    .gauge-fg { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+    .gauge-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.2rem; }
+    .gauge-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: center; }
+    .gauge-sub { font-size: 0.66rem; color: var(--muted); text-align: center; margin-top: -0.3rem; }
+
     /* Distribuição de pontos */
     .dist-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
     .dist-label { font-size: 0.8rem; color: var(--muted); width: 80px; }
@@ -145,7 +156,7 @@
       <div id="dist-chart"></div>
 
       <h3 class="mb-2 mt-3" style="font-size:1rem;font-weight:700;color:var(--muted)">Quatro fatores (ofensivos)</h3>
-      <div class="quarter-grid" id="four-factors-grid"></div>
+      <div class="gauge-grid" id="four-factors-grid"></div>
       <div class="text-muted text-sm mt-2">ORB%/DRB% ficam de fora — dependem de rebotes do adversário, que ainda não registramos por tipo de evento.</div>
 
       <h3 class="mb-2 mt-3" style="font-size:1rem;font-weight:700;color:var(--muted)" id="lineups-title">Melhores quintetos</h3>
@@ -196,6 +207,7 @@
     import { getGame, getGamePlayers } from '../js/games.js';
     import { getGameEvents } from '../js/events.js';
     import { calcBoxScore, calcTeamScore, calcOppScore, calcScoreByQuarter, calcOppScoreByQuarter, calcPlayerStats, calcAdvancedStats, isOppEvent } from '../js/stats.js';
+    import { gaugeCard } from '../js/gauge.js';
     import { getInitials, getQueryParam, pct, formatDate, downloadCSV } from '../js/utils.js';
     import { initShotChart, renderShots, getShotStats } from '../js/shotchart.js';
     import { getGameStints, playedSeconds, fmtMinutes } from '../js/stints.js';
@@ -426,16 +438,11 @@
       // Quatro fatores ofensivos (time todo)
       const adv = calcAdvancedStats(totals);
       document.getElementById('four-factors-grid').innerHTML = [
-        ['eFG%', adv.efgPct, 'Arremessos de campo, com bônus pra cesta de 3'],
-        ['TS%', adv.tsPct, 'Eficiência real, contando lances livres'],
-        ['TOV%', adv.tovPct, 'Erros a cada 100 posses estimadas'],
-        ['FT Rate', adv.ftRate, 'Lances livres tentados por arremesso de campo'],
-      ].map(([label, val, title]) => `
-        <div class="quarter-card" title="${title}">
-          <div class="quarter-label">${label}</div>
-          <div class="quarter-score">${val}%</div>
-        </div>
-      `).join('');
+        gaugeCard('eFG%', adv.efgPct, 'c/ bônus de 3'),
+        gaugeCard('TS%', adv.tsPct, 'c/ lances livres'),
+        gaugeCard('TOV%', adv.tovPct, 'erros/100 posses'),
+        gaugeCard('FT Rate', adv.ftRate, 'LL por arremesso'),
+      ].join('');
 
       // Melhores quintetos/trios (cruza stints x eventos com clock_s)
       const is3x3 = game.format === '3x3';
