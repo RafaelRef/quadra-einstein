@@ -1,4 +1,4 @@
-// Quadra Einstein — melhores quintetos (placar enquanto cada combinação de 5 esteve em quadra)
+// Quadra Einstein — melhores quintetos/trios (placar enquanto cada combinação esteve em quadra)
 //
 // Não precisa de tabela nova: `stints` já sabe quem estava em quadra em cada
 // segundo de jogo, e todo evento carrega `clock_s` na mesma unidade (segundos
@@ -26,11 +26,13 @@ function onCourtAt(stints, t0, t1, gameEndS) {
  * @param {Array} events - eventos do jogo (precisam de clock_s pra entrar na conta)
  * @param {Array} stints - stints do jogo (in_s/out_s)
  * @param {number} gameEndS - duração total do jogo em segundos, pra fechar stints ainda abertos
+ * @param {number} unitSize - tamanho do "quinteto" em quadra: 5 no 5x5, 3 no 3x3
  * @returns {Array<{playerIds, secondsPlayed, pointsFor, pointsAgainst, plusMinus}>}
  *          ordenado por tempo em quadra (desc). Só entram intervalos com exatamente
- *          5 jogadoras em quadra — o resto (banco incompleto, começo do jogo) é ignorado.
+ *          `unitSize` jogadoras em quadra — o resto (banco incompleto, começo do jogo)
+ *          é ignorado.
  */
-export function calcLineupStats(events, stints, gameEndS) {
+export function calcLineupStats(events, stints, gameEndS, unitSize = 5) {
   const timedEvents = (events || []).filter(e => e.clock_s != null);
   const breakpoints = buildBreakpoints(stints || [], gameEndS);
   const byLineup = new Map();
@@ -39,7 +41,7 @@ export function calcLineupStats(events, stints, gameEndS) {
     const t0 = breakpoints[i], t1 = breakpoints[i + 1];
     if (t1 <= t0) continue;
     const onCourt = [...new Set(onCourtAt(stints, t0, t1, gameEndS))];
-    if (onCourt.length !== 5) continue; // dado incompleto pro trecho — não dá pra atribuir
+    if (onCourt.length !== unitSize) continue; // dado incompleto pro trecho — não dá pra atribuir
 
     const key = [...onCourt].sort().join(',');
     if (!byLineup.has(key)) {

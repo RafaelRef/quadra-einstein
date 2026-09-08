@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0a0c10" />
+  <link rel="apple-touch-icon" href="../icons/icon-180.png" />
+  <link rel="icon" href="../icons/icon-32.png" />
   <title>Quadra Einstein — Placar ao vivo</title>
   <link rel="stylesheet" href="../css/style.css" />
   <style>
@@ -109,12 +113,15 @@
       document.getElementById('live-quarter').textContent =
         game.status === 'finished' ? 'Jogo encerrado' : game.status === 'live' ? 'Em andamento' : 'A começar';
 
-      const byQ = calcScoreByQuarter(events);
-      const oppByQ = calcOppScoreByQuarter(events);
+      const numPeriods = game.num_periods || 4;
+      const periodLabel = numPeriods === 1 ? 'P' : 'Q';
+      const byQ = calcScoreByQuarter(events, numPeriods);
+      const oppByQ = calcOppScoreByQuarter(events, numPeriods);
       const hasOppQ = events.some(e => e.opp_jersey_number != null);
-      document.getElementById('quarter-grid').innerHTML = [1, 2, 3, 4].map(q => `
+      document.getElementById('quarter-grid').style.gridTemplateColumns = `repeat(${numPeriods}, 1fr)`;
+      document.getElementById('quarter-grid').innerHTML = Array.from({ length: numPeriods }, (_, i) => i + 1).map(q => `
         <div class="quarter-card">
-          <div class="quarter-label">${q}Q</div>
+          <div class="quarter-label">${q}${periodLabel}</div>
           <div class="quarter-score">${byQ[q]}</div>
           ${hasOppQ ? `<div style="font-size:0.85rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700">${oppByQ[q]}</div>` : ''}
         </div>
@@ -144,6 +151,11 @@
     } else {
       tick();
       setInterval(tick, REFRESH_MS);
+    }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {}));
     }
   </script>
 </body>

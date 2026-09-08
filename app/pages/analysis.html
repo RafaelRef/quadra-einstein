@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0a0c10" />
+  <link rel="apple-touch-icon" href="../icons/icon-180.png" />
+  <link rel="icon" href="../icons/icon-32.png" />
   <title>Quadra Einstein — Análise</title>
   <link rel="stylesheet" href="../css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -330,6 +334,11 @@
     }
 
     init();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>

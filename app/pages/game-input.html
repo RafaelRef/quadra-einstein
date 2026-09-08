@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0a0c10" />
+  <link rel="apple-touch-icon" href="../icons/icon-180.png" />
+  <link rel="icon" href="../icons/icon-32.png" />
   <title>Quadra Einstein — Jogo ao Vivo</title>
   <link rel="stylesheet" href="../css/style.css" />
   <style>
@@ -265,12 +269,7 @@
     <div class="offline-banner" id="offline-banner" style="display:none"></div>
 
     <div class="clock-block">
-      <div class="quarter-selector" id="quarter-selector">
-        <button class="quarter-btn active" onclick="setQuarter(1)">1Q</button>
-        <button class="quarter-btn" onclick="setQuarter(2)">2Q</button>
-        <button class="quarter-btn" onclick="setQuarter(3)">3Q</button>
-        <button class="quarter-btn" onclick="setQuarter(4)">4Q</button>
-      </div>
+      <div class="quarter-selector" id="quarter-selector"></div>
       <div class="clock-time" id="clock-time" title="Clique para ajustar o relógio" onclick="editClock()">10:00</div>
       <button class="clock-btn" id="clock-btn" onclick="toggleClock()" title="Iniciar/pausar relógio">▶</button>
     </div>
@@ -426,7 +425,8 @@
     import { getQueryParam, showToast } from '../js/utils.js';
 
     const gameId = getQueryParam('gameId') || localStorage.getItem('currentGameId');
-    const QLEN = 600; // 10 min por quarto (FIBA)
+    let QLEN = 600; // duração de 1 período em segundos — ajustado em init() a partir de game.period_minutes
+    let NUM_PERIODS = 4; // ajustado em init() a partir de game.num_periods
 
     let game = null;
     let gamePlayers = [];
@@ -469,6 +469,13 @@
       localStorage.setItem(`ciq_clock_${gameId}`, JSON.stringify({ q: currentQuarter, r: clockRemaining }));
     }
 
+    function renderQuarterSelector() {
+      const label = NUM_PERIODS === 1 ? 'P' : 'Q'; // 3x3 costuma ter 1 período só, não "quartos"
+      document.getElementById('quarter-selector').innerHTML = Array.from({ length: NUM_PERIODS }, (_, i) => `
+        <button class="quarter-btn ${i + 1 === currentQuarter ? 'active' : ''}" onclick="setQuarter(${i + 1})">${i + 1}${label}</button>
+      `).join('');
+    }
+
     function renderClock() {
       const el = document.getElementById('clock-time');
       el.textContent = fmtClock(clockRemaining);
@@ -509,9 +516,9 @@
 
     window.setQuarter = function(q) {
       if (clockRunning) window.toggleClock();
-      currentQuarter = q;
+      currentQuarter = Math.min(Math.max(q, 1), NUM_PERIODS);
       clockRemaining = QLEN;
-      document.querySelectorAll('.quarter-btn').forEach((b, i) => b.classList.toggle('active', i + 1 === q));
+      renderQuarterSelector();
       saveClock(); renderClock(); updateFouls();
     };
 
@@ -829,10 +836,11 @@
     }
 
     function feedClockLabel(ev) {
-      if (ev.clock_s == null) return `Q${ev.quarter || '?'}`;
+      const label = NUM_PERIODS === 1 ? 'P' : 'Q';
+      if (ev.clock_s == null) return `${label}${ev.quarter || '?'}`;
       const q = ev.quarter || Math.floor(Number(ev.clock_s) / QLEN) + 1;
       const rem = QLEN - (Number(ev.clock_s) - (q - 1) * QLEN);
-      return `Q${q} ${fmtClock(Math.max(0, rem))}`;
+      return `${label}${q} ${fmtClock(Math.max(0, rem))}`;
     }
 
     function renderFeed() {
@@ -976,6 +984,10 @@
       document.title = `Quadra Einstein — vs ${game.opponent}`;
       renderSharePanel();
 
+      QLEN = Math.round((game.period_minutes || 10) * 60);
+      NUM_PERIODS = game.num_periods || 4;
+      clockRemaining = QLEN;
+
       [gamePlayers, gameEvents, stints] = await Promise.all([
         getGamePlayers(gameId),
         getGameEvents(gameId),
@@ -1000,9 +1012,9 @@
       // Restaura relógio salvo + quem está em quadra (stints abertos)
       try {
         const saved = JSON.parse(localStorage.getItem(`ciq_clock_${gameId}`) || 'null');
-        if (saved) { currentQuarter = saved.q; clockRemaining = saved.r; }
+        if (saved) { currentQuarter = Math.min(saved.q, NUM_PERIODS); clockRemaining = Math.min(saved.r, QLEN); }
       } catch {}
-      document.querySelectorAll('.quarter-btn').forEach((b, i) => b.classList.toggle('active', i + 1 === currentQuarter));
+      renderQuarterSelector();
       stints.filter(s => s.out_s == null).forEach(s => onCourt.add(s.player_id));
 
       // Camisas adversárias já vistas neste jogo
@@ -1036,6 +1048,11 @@
     }
 
     init();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>

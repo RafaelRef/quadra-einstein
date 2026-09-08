@@ -1,9 +1,9 @@
 import { supabase } from './supabase-client.js';
 
-export async function createGame(teamId, { opponent, date, location, is_home, tournament }) {
+export async function createGame(teamId, { opponent, date, location, is_home, tournament, format = '5x5', period_minutes = 10, num_periods = 4 }) {
   const { data, error } = await supabase
     .from('games')
-    .insert({ team_id: teamId, opponent, date, location, is_home, tournament, status: 'scheduled' })
+    .insert({ team_id: teamId, opponent, date, location, is_home, tournament, format, period_minutes, num_periods, status: 'scheduled' })
     .select()
     .single();
   if (error) throw error;

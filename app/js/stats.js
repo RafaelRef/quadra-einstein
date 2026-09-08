@@ -77,10 +77,10 @@ export function calcTeamScore(events) {
   return (events || []).filter(e => !isOppEvent(e)).reduce((pts, e) => pts + eventPoints(e), 0);
 }
 
-export function calcScoreByQuarter(events) {
-  const quarters = { 1: 0, 2: 0, 3: 0, 4: 0 };
+export function calcScoreByQuarter(events, numPeriods = 4) {
+  const quarters = Object.fromEntries(Array.from({ length: numPeriods }, (_, i) => [i + 1, 0]));
   (events || []).filter(e => !isOppEvent(e)).forEach(e => {
-    quarters[e.quarter || 1] += eventPoints(e);
+    quarters[e.quarter || 1] = (quarters[e.quarter || 1] || 0) + eventPoints(e);
   });
   return quarters;
 }
@@ -91,10 +91,10 @@ export function calcOppScore(events) {
   return (events || []).filter(isOppEvent).reduce((pts, e) => pts + eventPoints(e), 0);
 }
 
-export function calcOppScoreByQuarter(events) {
-  const quarters = { 1: 0, 2: 0, 3: 0, 4: 0 };
+export function calcOppScoreByQuarter(events, numPeriods = 4) {
+  const quarters = Object.fromEntries(Array.from({ length: numPeriods }, (_, i) => [i + 1, 0]));
   (events || []).filter(isOppEvent).forEach(e => {
-    quarters[e.quarter || 1] += eventPoints(e);
+    quarters[e.quarter || 1] = (quarters[e.quarter || 1] || 0) + eventPoints(e);
   });
   return quarters;
 }

@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0a0c10" />
+  <link rel="apple-touch-icon" href="../icons/icon-180.png" />
+  <link rel="icon" href="../icons/icon-32.png" />
   <title>Quadra Einstein — Novo Jogo</title>
   <link rel="stylesheet" href="../css/style.css" />
   <style>
@@ -78,6 +82,21 @@
             <option value="false">Fora</option>
           </select>
         </div>
+        <div class="form-group">
+          <label class="form-label">Formato</label>
+          <select class="select" id="format">
+            <option value="5x5">5x5</option>
+            <option value="3x3">3x3</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Períodos</label>
+          <input class="input" type="number" id="num_periods" min="1" max="8" value="4" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Minutos por período</label>
+          <input class="input" type="number" id="period_minutes" min="1" max="60" value="10" />
+        </div>
       </div>
     </div>
 
@@ -143,6 +162,18 @@
       if (chk) chk.checked = !chk.checked;
     };
 
+    document.getElementById('format').addEventListener('change', (e) => {
+      // 3x3 oficial é 1 período de 10min; 5x5 universitário costuma ser 4x10.
+      // São só valores de partida — o técnico pode mudar livremente.
+      if (e.target.value === '3x3') {
+        document.getElementById('num_periods').value = 1;
+        document.getElementById('period_minutes').value = 10;
+      } else {
+        document.getElementById('num_periods').value = 4;
+        document.getElementById('period_minutes').value = 10;
+      }
+    });
+
     document.getElementById('btn-toggle-all').addEventListener('click', () => {
       allSelected = !allSelected;
       players.forEach(p => {
@@ -172,6 +203,9 @@
           location: document.getElementById('location').value.trim() || null,
           is_home: document.getElementById('is_home').value === 'true',
           tournament: document.getElementById('tournament').value || null,
+          format: document.getElementById('format').value,
+          num_periods: parseInt(document.getElementById('num_periods').value) || 4,
+          period_minutes: parseFloat(document.getElementById('period_minutes').value) || 10,
         });
 
         await setGamePlayers(game.id, selectedIds);
@@ -192,6 +226,11 @@
     document.getElementById('btn-save-only').addEventListener('click', () => saveGame(false));
 
     init();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>

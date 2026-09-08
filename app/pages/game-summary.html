@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0a0c10" />
+  <link rel="apple-touch-icon" href="../icons/icon-180.png" />
+  <link rel="icon" href="../icons/icon-32.png" />
   <title>Quadra Einstein — Resumo do Jogo</title>
   <link rel="stylesheet" href="../css/style.css" />
   <style>
@@ -144,10 +148,10 @@
       <div class="quarter-grid" id="four-factors-grid"></div>
       <div class="text-muted text-sm mt-2">ORB%/DRB% ficam de fora — dependem de rebotes do adversário, que ainda não registramos por tipo de evento.</div>
 
-      <h3 class="mb-2 mt-3" style="font-size:1rem;font-weight:700;color:var(--muted)">Melhores quintetos</h3>
+      <h3 class="mb-2 mt-3" style="font-size:1rem;font-weight:700;color:var(--muted)" id="lineups-title">Melhores quintetos</h3>
       <div class="table-wrap" id="lineups-wrap" style="display:none">
         <table>
-          <thead><tr><th>Quinteto</th><th>MIN</th><th>Pró</th><th>Contra</th><th>+/-</th></tr></thead>
+          <thead><tr><th id="lineups-col-header">Quinteto</th><th>MIN</th><th>Pró</th><th>Contra</th><th>+/-</th></tr></thead>
           <tbody id="lineups-body"></tbody>
         </table>
       </div>
@@ -386,14 +390,17 @@
         win === true ? 'VITÓRIA' : win === false ? 'DERROTA' : 'RESULTADO';
       document.getElementById('team-opp-name').textContent = `vs ${game.opponent}`;
 
-      // Por quarto — mostra adversário se houver eventos opp_1pt rastreados
-      const byQ = calcScoreByQuarter(events);
-      const oppByQ = calcOppScoreByQuarter(events);
+      // Por quarto (ou período, no 3x3) — mostra adversário se houver eventos rastreados
+      const numPeriods = game.num_periods || 4;
+      const periodLabel = numPeriods === 1 ? 'P' : 'Q';
+      const byQ = calcScoreByQuarter(events, numPeriods);
+      const oppByQ = calcOppScoreByQuarter(events, numPeriods);
       const hasOppQuarterData = events.some(e => e.type === 'opp_1pt');
       if (hasOppQuarterData) document.getElementById('quarter-legend').style.display = '';
-      document.getElementById('quarter-grid').innerHTML = [1,2,3,4].map(q => `
+      document.getElementById('quarter-grid').style.gridTemplateColumns = `repeat(${numPeriods}, 1fr)`;
+      document.getElementById('quarter-grid').innerHTML = Array.from({ length: numPeriods }, (_, i) => i + 1).map(q => `
         <div class="quarter-card">
-          <div class="quarter-label">${q}Q</div>
+          <div class="quarter-label">${q}${periodLabel}</div>
           <div class="quarter-score">${byQ[q]}</div>
           ${hasOppQuarterData ? `<div style="font-size:1rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700">${oppByQ[q]}</div>` : ''}
         </div>
@@ -430,9 +437,12 @@
         </div>
       `).join('');
 
-      // Melhores quintetos (cruza stints x eventos com clock_s)
+      // Melhores quintetos/trios (cruza stints x eventos com clock_s)
+      const is3x3 = game.format === '3x3';
+      document.getElementById('lineups-title').textContent = is3x3 ? 'Melhores trios' : 'Melhores quintetos';
+      document.getElementById('lineups-col-header').textContent = is3x3 ? 'Trio' : 'Quinteto';
       const playerById = Object.fromEntries(gamePlayers.map(p => [p.id, p]));
-      const lineups = calcLineupStats(events, stints, gameEndS);
+      const lineups = calcLineupStats(events, stints, gameEndS, is3x3 ? 3 : 5);
       if (lineups.length === 0) {
         document.getElementById('lineups-empty').style.display = '';
       } else {
@@ -450,6 +460,11 @@
     }
 
     init();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>
