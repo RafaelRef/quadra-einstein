@@ -153,6 +153,13 @@
       transition: transform 0.08s;
     }
     .icon-btn:active { transform: scale(0.94); }
+    .icon-btn[data-action] { touch-action: none; user-select: none; -webkit-user-select: none; }
+    .icon-btn.drag-source-active { opacity: 0.4; }
+    .drag-ghost {
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.92;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); transform: scale(1.08);
+    }
+    .drop-hover { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-dim); }
     .icon-btn .ico { font-size: 1.1rem; line-height: 1; }
     .icon-btn.made { background: var(--green-bg); border-color: var(--green); color: #fff; }
     .icon-btn.miss { background: var(--red-bg); border-color: var(--red); color: #fff; }
@@ -331,21 +338,22 @@
 
         <div id="selected-label" class="no-player-warn">Selecione uma atleta na quadra.</div>
 
-        <div class="icon-grid">
-          <button class="icon-btn made" onclick="triggerShot('2pt_made')"><span class="ico">🏀</span>2 PTS</button>
-          <button class="icon-btn miss" onclick="triggerShot('2pt_miss')"><span class="ico">✗</span>2 PTS</button>
-          <button class="icon-btn made" onclick="triggerShot('3pt_made')"><span class="ico">🎯</span>3 PTS</button>
-          <button class="icon-btn miss" onclick="triggerShot('3pt_miss')"><span class="ico">✗</span>3 PTS</button>
-          <button class="icon-btn made" onclick="registerEvent('ft_made')"><span class="ico">✓</span>Lance livre</button>
-          <button class="icon-btn miss" onclick="registerEvent('ft_miss')"><span class="ico">✗</span>Lance livre</button>
-          <button class="icon-btn ghost" onclick="registerEvent('reb_def')"><span class="ico">🤲</span>Reb. def.</button>
-          <button class="icon-btn ghost" onclick="registerEvent('reb_off')"><span class="ico">🤲</span>Reb. of.</button>
-          <button class="icon-btn ghost" onclick="registerEvent('ast')"><span class="ico">🤝</span>Assist.</button>
-          <button class="icon-btn ghost" onclick="registerEvent('stl')"><span class="ico">✋</span>Roubo</button>
-          <button class="icon-btn ghost" onclick="registerEvent('blk')"><span class="ico">🚫</span>Toco</button>
-          <button class="icon-btn ghost" onclick="registerEvent('to')"><span class="ico">↩️</span>Erro</button>
-          <button class="icon-btn warn" onclick="registerEvent('foul')"><span class="ico">⚠️</span>Falta</button>
+        <div class="icon-grid" id="icon-grid">
+          <button class="icon-btn made" data-action="2pt_made" onclick="triggerShot('2pt_made')"><span class="ico">🏀</span>2 PTS</button>
+          <button class="icon-btn miss" data-action="2pt_miss" onclick="triggerShot('2pt_miss')"><span class="ico">✗</span>2 PTS</button>
+          <button class="icon-btn made" data-action="3pt_made" onclick="triggerShot('3pt_made')"><span class="ico">🎯</span>3 PTS</button>
+          <button class="icon-btn miss" data-action="3pt_miss" onclick="triggerShot('3pt_miss')"><span class="ico">✗</span>3 PTS</button>
+          <button class="icon-btn made" data-action="ft_made" onclick="registerEvent('ft_made')"><span class="ico">✓</span>Lance livre</button>
+          <button class="icon-btn miss" data-action="ft_miss" onclick="registerEvent('ft_miss')"><span class="ico">✗</span>Lance livre</button>
+          <button class="icon-btn ghost" data-action="reb_def" onclick="registerEvent('reb_def')"><span class="ico">🤲</span>Reb. def.</button>
+          <button class="icon-btn ghost" data-action="reb_off" onclick="registerEvent('reb_off')"><span class="ico">🤲</span>Reb. of.</button>
+          <button class="icon-btn ghost" data-action="ast" onclick="registerEvent('ast')"><span class="ico">🤝</span>Assist.</button>
+          <button class="icon-btn ghost" data-action="stl" onclick="registerEvent('stl')"><span class="ico">✋</span>Roubo</button>
+          <button class="icon-btn ghost" data-action="blk" onclick="registerEvent('blk')"><span class="ico">🚫</span>Toco</button>
+          <button class="icon-btn ghost" data-action="to" onclick="registerEvent('to')"><span class="ico">↩️</span>Erro</button>
+          <button class="icon-btn warn" data-action="foul" onclick="registerEvent('foul')"><span class="ico">⚠️</span>Falta</button>
         </div>
+        <div class="text-muted text-sm" style="text-align:center">💡 Arraste o ícone até a atleta na quadra, ou toque na atleta e depois no ícone.</div>
 
         <div class="undo-row">
           <button class="btn btn-ghost btn-sm" id="btn-undo" onclick="undoLast()">↩ Desfazer último</button>
@@ -630,7 +638,7 @@
       const box = document.getElementById('opp-jerseys');
       const nums = [...oppJerseys].sort((a, b) => a - b);
       box.innerHTML = nums.map(n =>
-        `<button class="opp-jersey ${n === selectedOppJersey ? 'selected' : ''}" onclick="selectOppJersey(${n})">#${n}</button>`
+        `<button class="opp-jersey ${n === selectedOppJersey ? 'selected' : ''}" data-jersey="${n}" onclick="selectOppJersey(${n})">#${n}</button>`
       ).join('') + `<button class="opp-jersey add" onclick="addOppJersey()" title="Adicionar camisa">+</button>`;
     }
 
@@ -804,6 +812,105 @@
         if (recognizer.active) recognizer.stop();
         else { document.getElementById('voice-transcript').textContent = ''; recognizer.start(); }
       });
+    }
+
+    // ---------- Arrastar ícone de ação até a atleta (alternativa ao toque) ----------
+    // Pointer Events (não a API HTML5 nativa de drag) porque `draggable` não
+    // funciona em touch no Safari/iOS — o dispositivo real de uso em quadra.
+    const SHOT_TYPES = new Set(['2pt_made', '2pt_miss', '3pt_made', '3pt_miss']);
+    const DRAG_THRESHOLD = 10; // px — abaixo disso ainda conta como toque normal
+
+    function setupDragAndDrop() {
+      let drag = null; // { type, sourceBtn, ghost, startX, startY, active }
+      let suppressNextClick = false;
+
+      function findDropTarget(x, y) {
+        const el = document.elementFromPoint(x, y);
+        if (!el) return null;
+        const playerCard = el.closest('.player-card-court');
+        if (playerCard) return { kind: 'ours', id: playerCard.dataset.id, el: playerCard };
+        const oppChip = el.closest('.opp-jersey:not(.add)');
+        if (oppChip) return { kind: 'opp', jersey: parseInt(oppChip.dataset.jersey), el: oppChip };
+        return null;
+      }
+
+      function clearHover() {
+        document.querySelectorAll('.drop-hover').forEach((el) => el.classList.remove('drop-hover'));
+      }
+
+      function dispatchAction(type) {
+        if (SHOT_TYPES.has(type)) window.triggerShot(type);
+        else window.registerEvent(type);
+      }
+
+      function onPointerDown(e, btn) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        drag = { type: btn.dataset.action, sourceBtn: btn, ghost: null, startX: e.clientX, startY: e.clientY, active: false };
+        btn.setPointerCapture(e.pointerId);
+      }
+
+      function onPointerMove(e) {
+        if (!drag) return;
+        const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+        if (!drag.active) {
+          if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+          drag.active = true;
+          drag.sourceBtn.classList.add('drag-source-active');
+          const ghost = drag.sourceBtn.cloneNode(true);
+          ghost.classList.add('drag-ghost');
+          ghost.style.width = drag.sourceBtn.offsetWidth + 'px';
+          ghost.style.height = drag.sourceBtn.offsetHeight + 'px';
+          document.body.appendChild(ghost);
+          drag.ghost = ghost;
+        }
+        drag.ghost.style.left = (e.clientX - drag.ghost.offsetWidth / 2) + 'px';
+        drag.ghost.style.top = (e.clientY - drag.ghost.offsetHeight / 2) + 'px';
+        clearHover();
+        const target = findDropTarget(e.clientX, e.clientY);
+        if (target) target.el.classList.add('drop-hover');
+      }
+
+      function onPointerUp(e) {
+        if (!drag) return;
+        const wasActive = drag.active;
+        if (wasActive) {
+          clearHover();
+          drag.sourceBtn.classList.remove('drag-source-active');
+          drag.ghost.remove();
+          const target = findDropTarget(e.clientX, e.clientY);
+          if (target) {
+            if (target.kind === 'ours') window.selectPlayer(target.id);
+            else { window.selectOppJersey(target.jersey); }
+            dispatchAction(drag.type);
+          }
+          // Expira sozinho: o "click" de compatibilidade que o navegador dispara
+          // depois de um drag real quase sempre chega, mas se por algum motivo
+          // não chegar, essa flag não pode ficar travada bloqueando o próximo
+          // toque em qualquer lugar do app.
+          suppressNextClick = true;
+          setTimeout(() => { suppressNextClick = false; }, 400);
+        }
+        drag = null;
+      }
+
+      document.querySelectorAll('.icon-btn[data-action]').forEach((btn) => {
+        btn.addEventListener('pointerdown', (e) => onPointerDown(e, btn));
+        btn.addEventListener('pointermove', onPointerMove);
+        btn.addEventListener('pointerup', onPointerUp);
+        btn.addEventListener('pointercancel', () => {
+          if (drag?.ghost) drag.ghost.remove();
+          if (drag?.sourceBtn) drag.sourceBtn.classList.remove('drag-source-active');
+          clearHover();
+          drag = null;
+        });
+      });
+
+      // Depois de um drag de verdade, o navegador ainda dispara um "click" de
+      // compatibilidade no botão de origem — sem isso, o evento seria
+      // registrado 2x (uma pelo drop, outra pelo onclick do botão).
+      document.addEventListener('click', (e) => {
+        if (suppressNextClick) { suppressNextClick = false; e.stopPropagation(); e.preventDefault(); }
+      }, true);
     }
 
     window.removeFeedEvent = async function(id) {
@@ -1073,6 +1180,7 @@
       renderShots(svgEl, gameEvents.filter(e => e.shot_x != null), scFilter, null);
       updateSCStats();
       setupVoice();
+      setupDragAndDrop();
 
       if (gamePlayers.length > 0 && !selectedPlayerId) window.selectPlayer(gamePlayers[0].id);
     }
