@@ -75,6 +75,13 @@
             <option>Outro</option>
           </select>
         </div>
+        <div class="form-group form-full">
+          <label class="form-label">Vincular a uma competição cadastrada (opcional)</label>
+          <select class="select" id="competition_id">
+            <option value="">Nenhuma</option>
+          </select>
+          <span class="text-muted text-sm">Isso gera a classificação automática em <a href="competitions.html" target="_blank">Competições</a>. O campo "Campeonato" acima é só um rótulo livre.</span>
+        </div>
         <div class="form-group">
           <label class="form-label">Mando de campo</label>
           <select class="select" id="is_home">
@@ -122,6 +129,7 @@
     import { requireAuth } from '../js/auth.js';
     import { getMyTeam, getPlayers } from '../js/team.js';
     import { createGame, setGamePlayers } from '../js/games.js';
+    import { getCompetitions } from '../js/competitions.js';
     import { getInitials, setLoading, formatDateTimeLocal } from '../js/utils.js';
 
     let players = [];
@@ -137,6 +145,12 @@
 
       players = await getPlayers(team.id);
       renderSquad();
+
+      getCompetitions().then((comps) => {
+        const sel = document.getElementById('competition_id');
+        sel.innerHTML = '<option value="">Nenhuma</option>' +
+          comps.map((c) => `<option value="${c.id}">${c.name}${c.season ? ' — ' + c.season : ''}</option>`).join('');
+      }).catch(() => {});
 
       // Data padrão: agora
       document.getElementById('date').value = formatDateTimeLocal(new Date());
@@ -206,6 +220,7 @@
           format: document.getElementById('format').value,
           num_periods: parseInt(document.getElementById('num_periods').value) || 4,
           period_minutes: parseFloat(document.getElementById('period_minutes').value) || 10,
+          competition_id: document.getElementById('competition_id').value || null,
         });
 
         await setGamePlayers(game.id, selectedIds);

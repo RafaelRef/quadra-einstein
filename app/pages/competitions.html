@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="../manifest.json" />
+  <meta name="theme-color" content="#0a0c10" />
+  <link rel="apple-touch-icon" href="../icons/icon-180.png" />
+  <link rel="icon" href="../icons/icon-32.png" />
+  <title>Quadra Einstein — Competições</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .main { padding: 1.5rem 1.25rem; max-width: 900px; margin: 0 auto; }
+    .page-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 2rem; margin-bottom: 0.3rem; }
+    .comp-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+    .comp-row {
+      display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+    }
+    .comp-row:hover { border-color: var(--border2); }
+    .comp-name { font-weight: 700; }
+    .comp-season { color: var(--muted); font-size: 0.82rem; margin-left: auto; }
+    .rank { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 1.1rem; color: var(--muted); }
+    .rank.gold { color: #fbbf24; } .rank.silver { color: #94a3b8; } .rank.bronze { color: #c07a3f; }
+    .back-link { display: inline-block; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a class="navbar-logo" href="../choose.html">Quadra<span>Einstein</span></a>
+    <div class="navbar-actions">
+      <a class="btn btn-ghost btn-sm" href="explore.html">Explorar</a>
+      <a class="btn btn-ghost btn-sm" href="../choose.html">← Início</a>
+    </div>
+  </nav>
+
+  <div class="main">
+    <!-- Lista -->
+    <div id="view-list">
+      <div class="page-title">Competições</div>
+      <p class="text-muted text-sm mb-2">Ligas e torneios que times cadastrados na Quadra Einstein disputam entre si. Sem hierarquia de administrador: qualquer time pode criar ou entrar.</p>
+
+      <div class="card">
+        <div class="form-grid" style="display:grid;grid-template-columns:2fr 1fr auto;gap:0.75rem;align-items:end">
+          <div class="form-group">
+            <label class="form-label">Nome</label>
+            <input class="input" type="text" id="new-comp-name" placeholder="Ex: NDU 17" maxlength="60" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Temporada</label>
+            <input class="input" type="text" id="new-comp-season" placeholder="Ex: 2026" maxlength="20" />
+          </div>
+          <button class="btn btn-primary" id="btn-create-comp">Criar</button>
+        </div>
+        <div class="form-error" id="create-error"></div>
+      </div>
+
+      <div class="comp-list" id="comp-list"><div class="text-muted text-sm">Carregando...</div></div>
+    </div>
+
+    <!-- Detalhe -->
+    <div id="view-detail" class="hidden">
+      <a class="btn btn-ghost btn-sm back-link" href="#" id="btn-back">← Competições</a>
+      <div class="page-title" id="detail-name">—</div>
+      <p class="text-muted text-sm mb-2" id="detail-season"></p>
+      <button class="btn btn-primary btn-sm mb-3" id="btn-join-toggle"></button>
+
+      <div class="table-wrap" id="standings-wrap"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from '../js/auth.js';
+    import { getMyTeam } from '../js/team.js';
+    import {
+      getCompetitions, createCompetition, getCompetition, getStandings,
+      joinCompetition, leaveCompetition, isTeamInCompetition,
+    } from '../js/competitions.js';
+    import { getQueryParam, setLoading, showToast } from '../js/utils.js';
+
+    let myTeam = null;
+
+    function showList() {
+      document.getElementById('view-list').classList.remove('hidden');
+      document.getElementById('view-detail').classList.add('hidden');
+      history.replaceState(null, '', 'competitions.html');
+      renderList();
+    }
+
+    async function renderList() {
+      const list = document.getElementById('comp-list');
+      const comps = await getCompetitions();
+      if (comps.length === 0) {
+        list.innerHTML = '<div class="text-muted text-sm">Nenhuma competição criada ainda.</div>';
+        return;
+      }
+      list.innerHTML = comps.map((c) => `
+        <div class="comp-row" onclick="showDetail('${c.id}')">
+          <div class="comp-name">${c.name}</div>
+          <div class="comp-season">${c.season || ''}</div>
+        </div>
+      `).join('');
+    }
+
+    window.showDetail = async function(id) {
+      document.getElementById('view-list').classList.add('hidden');
+      document.getElementById('view-detail').classList.remove('hidden');
+      history.replaceState(null, '', `competitions.html?id=${id}`);
+
+      const comp = await getCompetition(id);
+      document.getElementById('detail-name').textContent = comp.name;
+      document.getElementById('detail-season').textContent = comp.season || '';
+
+      const joinBtn = document.getElementById('btn-join-toggle');
+      if (myTeam) {
+        const inComp = await isTeamInCompetition(id, myTeam.id);
+        joinBtn.textContent = inComp ? `Sair da competição (${myTeam.name})` : `Entrar com ${myTeam.name}`;
+        joinBtn.className = inComp ? 'btn btn-ghost btn-sm mb-3' : 'btn btn-primary btn-sm mb-3';
+        joinBtn.onclick = async () => {
+          setLoading(joinBtn, true);
+          try {
+            if (inComp) await leaveCompetition(id, myTeam.id);
+            else await joinCompetition(id, myTeam.id);
+            window.showDetail(id);
+          } catch (err) {
+            showToast(err.message || 'Erro.', 'error');
+            setLoading(joinBtn, false);
+          }
+        };
+      } else {
+        joinBtn.style.display = 'none';
+      }
+
+      const standings = await getStandings(id);
+      const wrap = document.getElementById('standings-wrap');
+      if (standings.length === 0) {
+        wrap.innerHTML = '<div class="text-muted text-sm">Nenhum time entrou nesta competição ainda.</div>';
+        return;
+      }
+      wrap.innerHTML = `
+        <table>
+          <thead><tr><th>#</th><th>Time</th><th>J</th><th>V</th><th>D</th><th>Saldo</th></tr></thead>
+          <tbody>
+            ${standings.map((row, i) => `
+              <tr>
+                <td><span class="rank ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''}">${i + 1}</span></td>
+                <td>${row.team.name}</td>
+                <td>${row.played}</td>
+                <td style="color:var(--green)">${row.wins}</td>
+                <td style="color:var(--red)">${row.losses}</td>
+                <td>${row.ptsFor - row.ptsAgainst > 0 ? '+' : ''}${row.ptsFor - row.ptsAgainst}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    };
+
+    document.getElementById('btn-back').addEventListener('click', (e) => { e.preventDefault(); showList(); });
+
+    document.getElementById('btn-create-comp').addEventListener('click', async () => {
+      const name = document.getElementById('new-comp-name').value.trim();
+      const season = document.getElementById('new-comp-season').value.trim();
+      const errEl = document.getElementById('create-error');
+      errEl.textContent = '';
+      if (!name) { errEl.textContent = 'Informe o nome da competição.'; return; }
+      const btn = document.getElementById('btn-create-comp');
+      setLoading(btn, true);
+      try {
+        const comp = await createCompetition(name, season, myTeam?.id || null);
+        document.getElementById('new-comp-name').value = '';
+        document.getElementById('new-comp-season').value = '';
+        setLoading(btn, false);
+        window.showDetail(comp.id);
+      } catch (err) {
+        errEl.textContent = err.message || 'Erro ao criar competição.';
+        setLoading(btn, false);
+      }
+    });
+
+    async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      myTeam = await getMyTeam(session.user.id);
+
+      const id = getQueryParam('id');
+      if (id) window.showDetail(id);
+      else showList();
+    }
+
+    init();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>

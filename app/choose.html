@@ -91,31 +91,32 @@
     <nav class="navbar">
       <span class="navbar-logo">Quadra<span>Einstein</span></span>
       <div class="navbar-actions">
-        <button class="btn btn-ghost btn-sm" id="btn-logout">Sair</button>
+        <span id="lang-switch-mount"></span>
+        <button class="btn btn-ghost btn-sm" id="btn-logout" data-i18n="choose.logout">Sair</button>
       </div>
     </nav>
 
     <div class="choose-body">
       <div class="choose-inner">
         <div class="greeting" id="greeting">Olá!</div>
-        <div class="greeting-sub">O que você quer fazer hoje?</div>
+        <div class="greeting-sub" data-i18n="choose.subtitle">O que você quer fazer hoje?</div>
 
         <div class="choose-grid">
           <a class="choose-card" href="pages/team.html" id="card-myteam">
             <div class="choose-icon">🏀</div>
             <div>
-              <div class="choose-title">Meu Time</div>
-              <div class="choose-team-name" id="team-name-label">Carregando...</div>
+              <div class="choose-title" data-i18n="choose.myteam_title">Meu Time</div>
+              <div class="choose-team-name" id="team-name-label" data-i18n="choose.myteam_loading">Carregando...</div>
             </div>
-            <div class="choose-desc">Elenco, jogos, estatísticas e evolução do seu time.</div>
+            <div class="choose-desc" data-i18n="choose.myteam_desc">Elenco, jogos, estatísticas e evolução do seu time.</div>
           </a>
 
           <a class="choose-card" href="pages/explore.html">
             <div class="choose-icon">🔍</div>
             <div>
-              <div class="choose-title">Explorar</div>
+              <div class="choose-title" data-i18n="choose.explore_title">Explorar</div>
             </div>
-            <div class="choose-desc">Classificação e estatísticas de outros times no NDU e JUBS.</div>
+            <div class="choose-desc" data-i18n="choose.explore_desc">Classificação e estatísticas de outros times no NDU e JUBS.</div>
           </a>
         </div>
       </div>
@@ -125,19 +126,19 @@
   <!-- Modal onboarding: criar time -->
   <div class="modal-overlay hidden" id="modal-onboarding">
     <div class="modal">
-      <div class="modal-title">Bem-vindo(a) à Quadra Einstein! 👋</div>
-      <p class="text-muted text-sm mb-2">Vamos criar seu time antes de começar.</p>
+      <div class="modal-title" data-i18n="onboarding.title">Bem-vindo(a) à Quadra Einstein! 👋</div>
+      <p class="text-muted text-sm mb-2" data-i18n="onboarding.subtitle">Vamos criar seu time antes de começar.</p>
       <div class="onboarding-steps">
         <div>
-          <div class="step-label">Passo 1 — Nome do time</div>
+          <div class="step-label" data-i18n="onboarding.step1_label">Passo 1 — Nome do time</div>
           <div class="form-group">
-            <input class="input" type="text" id="team-name-input" placeholder="Ex: Medicina Einstein" maxlength="60" />
+            <input class="input" type="text" id="team-name-input" placeholder="Ex: Medicina Einstein" data-i18n-placeholder="onboarding.team_placeholder" maxlength="60" />
           </div>
         </div>
         <div>
-          <div class="step-label">Passo 2 — Primeira atleta (opcional)</div>
+          <div class="step-label" data-i18n="onboarding.step2_label">Passo 2 — Primeira atleta (opcional)</div>
           <div class="form-group">
-            <input class="input" type="text" id="player-name-input" placeholder="Nome da atleta" maxlength="60" />
+            <input class="input" type="text" id="player-name-input" placeholder="Nome da atleta" data-i18n-placeholder="onboarding.player_placeholder" maxlength="60" />
           </div>
           <div class="flex gap-1 mt-1">
             <input class="input" type="number" id="player-number-input" placeholder="Nº" min="0" max="99" style="width:70px;flex-shrink:0" />
@@ -153,7 +154,7 @@
         <div class="form-error" id="onboarding-error"></div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" id="btn-create-team">Criar time</button>
+        <button class="btn btn-primary" id="btn-create-team" data-i18n="onboarding.create_button">Criar time</button>
       </div>
     </div>
   </div>
@@ -162,7 +163,10 @@
     import { requireAuth, signOut } from './js/auth.js';
     import { getMyTeam, createTeam, createPlayer } from './js/team.js';
     import { setLoading } from './js/utils.js';
+    import { applyTranslations, mountLangSwitch, t } from './js/i18n.js';
 
+    applyTranslations();
+    mountLangSwitch(document.getElementById('lang-switch-mount'));
     document.getElementById('btn-logout').addEventListener('click', signOut);
 
     async function init() {
@@ -171,11 +175,11 @@
 
       const user = session.user;
       const email = user.email || '';
-      document.getElementById('greeting').textContent = `Olá, ${email.split('@')[0]}!`;
+      document.getElementById('greeting').textContent = `${t('choose.hi')}, ${email.split('@')[0]}!`;
 
       const team = await getMyTeam(user.id);
       if (!team) {
-        document.getElementById('team-name-label').textContent = 'Criar time';
+        document.getElementById('team-name-label').textContent = t('onboarding.create_button');
         document.getElementById('modal-onboarding').classList.remove('hidden');
         document.getElementById('card-myteam').style.pointerEvents = 'none';
       } else {
@@ -191,7 +195,7 @@
       const btn = document.getElementById('btn-create-team');
       errEl.textContent = '';
 
-      if (!teamName) { errEl.textContent = 'Informe o nome do time.'; return; }
+      if (!teamName) { errEl.textContent = t('onboarding.error_missing_name'); return; }
 
       setLoading(btn, true);
       try {
@@ -206,7 +210,7 @@
         }
         window.location.href = 'pages/team.html';
       } catch (err) {
-        errEl.textContent = err.message || 'Erro ao criar time.';
+        errEl.textContent = err.message || t('onboarding.error_generic');
         setLoading(btn, false);
       }
     });
