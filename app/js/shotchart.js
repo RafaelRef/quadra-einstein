@@ -4,8 +4,8 @@
 // Paleta da quadra — madeira clara + áreas pintadas de azul (estilo quadra oficial).
 const LINE = '#ffffff';        // linhas da quadra
 const RIM = '#e8590c';         // aro
-const PAINT = '#a9840f';       // azul das áreas pintadas
-const PAINT_DARK = '#1d4fd7';  // tom mais escuro p/ profundidade
+const PAINT = '#a9840f';       // dourado das áreas pintadas
+const PAINT_DARK = '#7a5f0b';  // tom mais escuro p/ profundidade
 
 const COURT_ELEMENTS = `
 <defs>
@@ -45,10 +45,10 @@ const COURT_ELEMENTS = `
 <!-- Círculo central azul com logo Quadra Einstein -->
 <circle cx="280" cy="150" r="36" fill="url(#paintBlue)" stroke="${LINE}" stroke-width="2"/>
 <text x="280" y="146" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-weight="800"
-  font-size="17" fill="#ffffff" letter-spacing="0.5">COURT<tspan fill="#9ec2ff">IQ</tspan></text>
+  font-size="17" fill="#ffffff" letter-spacing="0.5">QUADRA</text>
 <line x1="258" y1="153" x2="302" y2="153" stroke="rgba(255,255,255,0.55)" stroke-width="1"/>
 <text x="280" y="163" text-anchor="middle" font-family="'Barlow',sans-serif" font-weight="600"
-  font-size="6.5" fill="rgba(255,255,255,0.75)" letter-spacing="2.2">BASKETBALL</text>
+  font-size="6.5" fill="rgba(255,255,255,0.75)" letter-spacing="2.2">EINSTEIN</text>
 
 <!-- Marcas azuis das laterais (mesa/bancos) -->
 <rect x="240" y="0" width="80" height="6" fill="${PAINT}"/>
